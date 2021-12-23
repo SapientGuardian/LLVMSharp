@@ -1,4 +1,4 @@
-﻿using LLVMSharp;
+using LLVMSharp;
 
 namespace KaleidoscopeLLVM
 {
@@ -21,7 +21,7 @@ namespace KaleidoscopeLLVM
         public void ExitHandleDefinition(FunctionAST data)
         {
             this.visitor.Visit(data);
-            LLVM.DumpValue(this.visitor.ResultStack.Pop());
+            this.visitor.ResultStack.Pop().Dump();
         }
 
         public void EnterHandleExtern(PrototypeAST data)
@@ -31,7 +31,7 @@ namespace KaleidoscopeLLVM
         public void ExitHandleExtern(PrototypeAST data)
         {
             this.visitor.Visit(data);
-            LLVM.DumpValue(this.visitor.ResultStack.Pop());
+            this.visitor.ResultStack.Pop().Dump();
         }
 
         public void EnterHandleTopLevelExpression(FunctionAST data)
@@ -41,7 +41,7 @@ namespace KaleidoscopeLLVM
         public void ExitHandleTopLevelExpression(FunctionAST data)
         {
             this.visitor.Visit(data);
-            LLVM.DumpValue(this.visitor.ResultStack.Pop());
+            this.visitor.ResultStack.Pop().Dump();
         }
     }
 }

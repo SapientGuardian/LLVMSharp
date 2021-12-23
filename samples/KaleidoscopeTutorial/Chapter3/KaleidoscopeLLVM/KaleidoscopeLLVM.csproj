@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -11,15 +11,16 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>b8df454a</NuGetPackageImportStamp>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kaleidoscope\Kaleidoscope.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="LLVMSharp" Version="5.0.0" />
+    <Folder Include="Properties" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Properties" />
+    <PackageReference Include="LLVMSharp" Version="12.0.0-beta1" />
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
 			 Other similar extension points exist, see Microsoft.Common.targets.

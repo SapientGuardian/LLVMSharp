@@ -1,16 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Kaleidoscope.AST;
 using LLVMSharp;
+using LLVMSharp.Interop;
 
 namespace KaleidoscopeLLVM
 {
     internal sealed class CodeGenVisitor : ExprVisitor
-    {
-        private static readonly LLVMBool LLVMBoolFalse = new LLVMBool(0);
-
-        private static readonly LLVMValueRef NullValue = new LLVMValueRef(IntPtr.Zero);
-
+    {        
         private readonly LLVMModuleRef module;
 
         private readonly LLVMBuilderRef builder;
@@ -33,8 +30,8 @@ namespace KaleidoscopeLLVM
         }
 
         protected override ExprAST VisitNumberExprAST(NumberExprAST node)
-        {
-            this.valueStack.Push(LLVM.ConstReal(LLVM.DoubleType(), node.Value));
+        {            
+            this.valueStack.Push(LLVMValueRef.CreateConstReal(module.Context.DoubleType, node.Value));
             return node;
         }
 
@@ -67,18 +64,18 @@ namespace KaleidoscopeLLVM
 
             switch (node.NodeType)
             {
-                case ExprType.AddExpr:
-                    n = LLVM.BuildFAdd(this.builder, l, r, "addtmp");
+                case ExprType.AddExpr:                    
+                    n = builder.BuildFAdd(l, r, "addtmp");
                     break;
                 case ExprType.SubtractExpr:
-                    n = LLVM.BuildFSub(this.builder, l, r, "subtmp");
+                    n = builder.BuildFSub(l, r, "subtmp");
                     break;
                 case ExprType.MultiplyExpr:
-                    n = LLVM.BuildFMul(this.builder, l, r, "multmp");
+                    n = builder.BuildFMul(l, r, "multmp");
                     break;
                 case ExprType.LessThanExpr:
-                    // Convert bool 0/1 to double 0.0 or 1.0
-                    n = LLVM.BuildUIToFP(this.builder, LLVM.BuildFCmp(this.builder, LLVMRealPredicate.LLVMRealULT, l, r, "cmptmp"), LLVM.DoubleType(), "booltmp");
+                    // Convert bool 0/1 to double 0.0 or 1.0                    
+                    n = builder.BuildUIToFP(builder.BuildFCmp(LLVMRealPredicate.LLVMRealULT, l, r, "cmptmp"), module.Context.DoubleType, "booltmp");
                     break;
                 default:
                     throw new Exception("invalid binary operator");
@@ -90,13 +87,14 @@ namespace KaleidoscopeLLVM
 
         protected override ExprAST VisitCallExprAST(CallExprAST node)
         {
-            var calleeF = LLVM.GetNamedFunction(this.module, node.Callee);
-            if (calleeF.Pointer == IntPtr.Zero)
+
+            var calleeF = module.GetNamedFunction(node.Callee);
+            if (calleeF.Handle == IntPtr.Zero)
             {
                 throw new Exception("Unknown function referenced");
-            }
+            }            
 
-            if (LLVM.CountParams(calleeF) != node.Arguments.Count)
+            if (calleeF.ParamsCount != node.Arguments.Count)
             {
                 throw new Exception("Incorrect # arguments passed");
             }
@@ -109,7 +107,7 @@ namespace KaleidoscopeLLVM
                 argsV[i] = this.valueStack.Pop();
             }
 
-            valueStack.Push(LLVM.BuildCall(this.builder, calleeF, argsV, "calltmp"));
+            valueStack.Push(builder.BuildCall(calleeF, argsV, "calltmp"));
 
             return node;
         }
@@ -118,22 +116,22 @@ namespace KaleidoscopeLLVM
         {
             // Make the function type:  double(double,double) etc.
             var argumentCount = (uint)node.Arguments.Count;
-            var arguments = new LLVMTypeRef[Math.Max(argumentCount, 1)];
+            var arguments = new LLVMTypeRef[argumentCount];
 
-            var function = LLVM.GetNamedFunction(this.module, node.Name);
+            var function = module.GetNamedFunction(node.Name);
 
             // If F conflicted, there was already something named 'Name'.  If it has a
             // body, don't allow redefinition or reextern.
-            if (function.Pointer != IntPtr.Zero)
+            if (function.Handle != IntPtr.Zero)
             {
-                // If F already has a body, reject this.
-                if (LLVM.CountBasicBlocks(function) != 0)
+                // If F already has a body, reject this.                
+                if (function.BasicBlocksCount != 0)
                 {
                     throw new Exception("redefinition of function.");
                 }
 
                 // If F took a different number of args, reject.
-                if (LLVM.CountParams(function) != argumentCount)
+                if (function.ParamsCount != argumentCount)
                 {
                     throw new Exception("redefinition of function with different # args");
                 }
@@ -142,19 +140,18 @@ namespace KaleidoscopeLLVM
             {
                 for (int i = 0; i < argumentCount; ++i)
                 {
-                    arguments[i] = LLVM.DoubleType();
-                }
-
-                function = LLVM.AddFunction(this.module, node.Name, LLVM.FunctionType(LLVM.DoubleType(), arguments, LLVMBoolFalse));
-                LLVM.SetLinkage(function, LLVMLinkage.LLVMExternalLinkage);
+                    arguments[i] = module.Context.DoubleType;
+                }                
+                function = module.AddFunction(node.Name, LLVMTypeRef.CreateFunction(module.Context.DoubleType, arguments, false));
+                function.Linkage = LLVMLinkage.LLVMExternalLinkage;
             }
 
             for (int i = 0; i < argumentCount; ++i)
             {
                 string argumentName = node.Arguments[i];
 
-                LLVMValueRef param = LLVM.GetParam(function, (uint)i);
-                LLVM.SetValueName(param, argumentName);
+                LLVMValueRef param = function.GetParam((uint)i);
+                param.Name = argumentName;                
 
                 this.namedValues[argumentName] = param;
             }
@@ -172,7 +169,7 @@ namespace KaleidoscopeLLVM
             LLVMValueRef function = this.valueStack.Pop();
 
             // Create a new basic block to start insertion into.
-            LLVM.PositionBuilderAtEnd(this.builder, LLVM.AppendBasicBlock(function, "entry"));
+            builder.PositionAtEnd(function.AppendBasicBlock("entry"));            
 
             try
             {
@@ -180,15 +177,15 @@ namespace KaleidoscopeLLVM
             }
             catch (Exception)
             {
-                LLVM.DeleteFunction(function);
+                function.DeleteFunction();
                 throw;
             }
 
             // Finish off the function.
-            LLVM.BuildRet(this.builder, this.valueStack.Pop());
+            builder.BuildRet(this.valueStack.Pop());
 
             // Validate the generated code, checking for consistency.
-            LLVM.VerifyFunction(function, LLVMVerifierFailureAction.LLVMPrintMessageAction);
+            function.VerifyFunction(LLVMVerifierFailureAction.LLVMPrintMessageAction);
 
             this.valueStack.Push(function);
 

@@ -1,4 +1,4 @@
-﻿namespace KaleidoscopeLLVM
+namespace KaleidoscopeLLVM
 {
     using System;
     using System.Collections.Generic;
@@ -9,9 +9,11 @@
     {
         private static void Main(string[] args)
         {
+            var llvmContext = new LLVMContext();
+
             // Make the module, which holds all the code.
-            LLVMModuleRef module = LLVM.ModuleCreateWithName("my cool jit");
-            LLVMBuilderRef builder = LLVM.CreateBuilder();
+            var module = llvmContext.Handle.CreateModuleWithName("my cool jit");            
+            var builder = llvmContext.Handle.CreateBuilder();
             var codeGenlistener = new CodeGenParserListener(new CodeGenVisitor(module, builder));
 
             // Install standard binary operators.
@@ -36,7 +38,7 @@
             MainLoop(scanner, parser);
 
             // Print out all of the generated code.
-            LLVM.DumpModule(module);
+            module.Dump();
         }
 
         private static void MainLoop(ILexer lexer, IParser parser)
